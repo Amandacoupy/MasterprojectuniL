@@ -1,0 +1,2111 @@
+### Growh study
+
+### Growth curves 
+
+library(FSA)
+library(magrittr)
+library(dplyr)
+library(nlstools)
+library(AICcmodavg)
+library(devtools)
+library(tidyr)
+library(ggplot2)
+library(Rmisc)
+library(dunn.test)
+library(ordinal)
+library(gridExtra)
+library(cowplot)
+library(GGally)
+library(lsmeans)
+
+#reset R brain
+rm(list=ls())
+#getwd tells you where R is currently looking
+getwd()
+
+#setwd tells R where to look
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+df <- read.csv("ombletotal2018foranalysis.csv", sep=";", header = TRUE)
+df <- data.frame(df)
+
+
+data0003<-subset(df, Cohort >= 2000 & Cohort<= 2003)
+data5865<-subset(df, Cohort >= 1958 & Cohort<= 1965)
+data8086<-subset(df, Cohort >= 1980 & Cohort<=1986 )
+data9499<-subset(df, Cohort >= 1994 &Cohort<= 1999)
+data1215<-subset(df, Cohort >= 2012 & Cohort<=2015)
+data18 <- subset(df, Year=="2018")
+data17 <- subset(df, Year=="2017")
+
+
+
+group <- vector(length = nrow(df))
+df <- cbind(df,group)
+
+
+for (rows in 1:nrow(df)) { ### boucle qui permet de rajouter une colonne à mon dataframe df.
+  if(df$Cohort[rows] >= 1958 & df$Cohort[rows] <= 1965) ### quand cohort est entre 58 et 65, on demande a rajouter 58-65 dans la colonne crée Group
+    df$group[rows] <- "58-65"
+  if(df$Cohort[rows] >= 1980 & df$Cohort[rows] <= 1986)
+    df$group[rows] <- "80-86"
+  if(df$Cohort[rows] >= 1994 & df$Cohort[rows] <= 1999)
+    df$group[rows] <- "94-99"
+  if(df$Cohort[rows] >= 2000 & df$Cohort[rows] <= 2003)
+    df$group[rows] <- "00-03"
+  if(df$Cohort[rows] >= 2012 & df$Cohort[rows] <= 2015)
+    df$group[rows] <- "12-15"
+}
+
+
+# The arguments to gather():
+# - data: Data object
+# - key: Name of new key column (made from names of data columns)
+# - value: Name of new value column
+# - ...: Names of source columns that contain values
+# - factor_key: Treat the new key column as a factor (instead of character vector)
+
+df_long <- gather(df, back_age, back_length, L1:L6, factor_key=TRUE)
+df.f <- filter(df_long, Sex=="F")
+df.m <- filter(df_long, Sex=="M")
+df_long1215<- gather(data1215, back_age, back_length, L1:L6, factor_key=TRUE)
+
+
+
+
+bl1215 <- summarySE(df_long1215, measurevar="back_length", groupvars=c("Sex","back_age"), na.rm =TRUE)
+sel <- c(13:18)
+bl1215 <- bl1215[-sel,]
+
+bl <- summarySE(df_long1215, measurevar="back_length", groupvars=c("group","back_age"), na.rm =TRUE)
+bl <-  subset(bl, group != FALSE)
+pd <- position_dodge(0.1) # move them .05 to the left and right
+bl.f <-summarySE(df.f, measurevar="back_length", groupvars=c("group","back_age"), na.rm =TRUE)
+bl.f <-  subset(bl.f, group != FALSE)
+bl.m <- summarySE(df.m , measurevar="back_length", groupvars=c("group","back_age"), na.rm =TRUE)
+bl.m <-  subset(bl.m, group != FALSE)
+
+data.frame.f <- data.frame(bl.f)
+data.frame.m <- data.frame(bl.m)
+write.csv(data.frame.f, "Tableau.f.csv")
+write.csv(data.frame.m, "Tableau.m.csv")
+
+### différence de croissance male et femelle 2012-2015
+g1 <- ggplot(bl1215, aes(x=back_age, y=back_length, colour=Sex, group=Sex))+ 
+  geom_errorbar(aes(ymin=back_length-sd, ymax=back_length+sd), colour="black", width=.2, position = pd)+
+  geom_line(position = pd)+
+  geom_point(position = pd, size=2)+
+  xlab("Age (years)")+
+  ylab("Length (mm)")+
+  ggtitle("Growth curves for male and female (2012-2015)")+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 12, face="bold"),
+        legend.text = element_text(colour = "black", size = 12),
+        legend.justification=c(1,0),
+        legend.position=c(0.96,0.05))
+
+shapiro.test(data1215$L1)## Toutes les données du type ne suivent pas une loi normale
+
+data1215f <-  filter(data1215, Sex=="F")
+data1215m <-  filter(data1215, Sex=="M")
+
+data8086f <-  filter(data8086, Sex=="F")
+data8086m <-  filter(data8086, Sex=="M")
+
+data9499f <-  filter(data9499, Sex=="F")
+data9499m <-  filter(data9499, Sex=="M")
+
+data0003f <-  filter(data0003, Sex=="F")
+data0003m <-  filter(data0003, Sex=="M")
+
+### 1215
+wilcox.test(data1215m$L1, data1215f$L1)
+wilcox.test(data1215m$L2, data1215f$L2)
+wilcox.test(data1215m$L3, data1215f$L3)
+wilcox.test(data1215m$L4, data1215f$L4)
+wilcox.test(data1215m$L5, data1215f$L5)
+# sauf à 1+ tout est significativement différent 
+# donc je sépare bien males et femelles pour mes prochaines analyses
+
+### 8086
+wilcox.test(data8086m$L1, data8086f$L1)
+wilcox.test(data8086m$L2, data8086f$L2)
+wilcox.test(data8086m$L3, data8086f$L3)
+wilcox.test(data8086m$L4, data8086f$L4)
+wilcox.test(data8086m$L5, data8086f$L5)
+# sauf à 1 +, significativement différent
+
+### 9499
+wilcox.test(data9499m$L1, data9499f$L1)
+wilcox.test(data9499m$L2, data9499f$L2)
+wilcox.test(data9499m$L3, data9499f$L3)
+wilcox.test(data9499m$L4, data9499f$L4)
+wilcox.test(data9499m$L5, data9499f$L5)
+#sauf 1+ tout est différent
+
+###0003
+wilcox.test(data0003m$L1, data0003f$L1)
+wilcox.test(data0003m$L2, data0003f$L2)
+wilcox.test(data0003m$L3, data0003f$L3)
+wilcox.test(data0003m$L4, data0003f$L4)
+wilcox.test(data0003m$L5, data0003f$L5)
+# tout est différent
+
+
+##ANCOVA pour verifier différentes moyennes entre 2 groupes pour cohortes 1215
+
+a <- aov(df_long1215$Length~df_long1215$Sex*df_long1215$Age)
+anova(a)
+summary(a)
+
+
+a1 <- aov(df_lon12-15$Length~df_lon12-15$Sex+df_lon12-15$Age)
+anova(a1)
+
+df_lon12-15$back_age<- as.factor(df_lon12-15$back_age)
+df$Sex<- as.factor(df$Sex)
+
+
+b <- glm(df_lon12-15$back_length~df_lon12-15$Sex+df_lon12-15$back_age)
+anova(b)
+summary(b)
+
+lsmeans(b, list(pairwise ~ back_age), adjust="tukey")
+lsmeans(b, list(pairwise ~ Sex), adjust="tukey")
+
+
+#ggplot(bl, aes(x=back_age, y=back_length))+ 
+# geom_errorbar(aes(ymin=back_length-ci, ymax=back_length+ci, colour="black"), width=.1, position=pd)+
+#geom_line(position = pd)+
+#geom_point(position = pd, size=2)
+bl.f$group<- factor(bl.f$group, levels = c("80-86", "94-99", "00-03", "12-15"))
+bl.m$group<- factor(bl.m$group, levels = c("80-86", "94-99", "00-03", "12-15"))
+
+#### CROISSANCE FEMALE POUR CHAQUE COHORTE
+bp <-ggplot(bl.f, aes(x=back_age, y=back_length, colour=group, group=group))+ 
+  geom_errorbar(aes(ymin=back_length-sd, ymax=back_length+sd), colour="black", width=.5, position = pd)+
+  geom_line(position = pd)+
+  geom_point(position = pd, size=2)+
+  xlab("Age (years)")+
+  ylab("Length (mm)")+
+  ggtitle("")+
+  ylim(100,600)+
+  scale_color_manual((fill=guide_legend(title="Legend")), labels = c("1980-1986", "1994-1999", "2000-2003", "2012-2015"), values= c("orange","#318CE7", "#34C924", "#ED0000"))+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 10, face="bold"),
+        legend.justification=c(1,0),
+        legend.position=c(0.96,0.05))+
+  theme(legend.position = "none")
+
+
+#### CROISSANCE MALE POUR CHAQUE COHORTE
+sp <- ggplot(bl.m, aes(x=back_age, y=back_length, colour=group, group=group))+ 
+  geom_errorbar(aes(ymin=back_length-sd, ymax=back_length+sd), colour="black", width=.5, position = pd)+
+  geom_line(position = pd)+
+  geom_point(position = pd, size=2)+
+  xlab("Age (years)")+
+  ylab("Length (mm)")+
+  ggtitle("")+
+  ylim(100,600)+
+  scale_color_manual((fill=guide_legend(title="Legend")), labels = c("1980-1986", "1994-1999", "2000-2003", "2012-2015"), values= c("orange","#318CE7", "#34C924", "#ED0000"))+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 8, face="bold"),
+        legend.justification=c(1,0),
+        legend.position="right")+
+  theme(legend.position = "none")
+
+
+
+grid.draw.ggmatrix <- function(x, recording = TRUE) {
+  print(x)
+}
+plot_grid(bp, sp, labels = c("A) Female", "B) Male"), nrow = 1, ncol = 2)
+
+
+
+
+## ici demandé à Robin ce qu'il ferait comme modèle
+a3 <- glm(df_long$back_length~df_long$back_age*df_long$group)
+anova(a3)
+summary(a3) ## j'ai pas trop réussi
+
+df.fback_age <- as.factor(df.f$back_age)
+df.f$group <- as.factor(df.f$group)
+
+glm4 <- glm(df_long$back_length~df_long$back_age+df_long$group+df_long$Sex)
+anova(glm4)
+summary(glm4)
+
+lsmeans(glm4, list(pairwise ~ group), adjust="tukey")
+lsmeans(glm4, list(pairwise ~ Sex), adjust="tukey")
+lsmeans(glm4, list(pairwise ~ back_age), adjust="tukey")
+
+##### faire un glm par sexe
+
+#FEMALE
+glm1 <- glm(df.f$back_length~df.f$back_age+df.f$group)
+anova(glm1)
+summary(glm1)
+
+lsmeans(glm1, list(pairwise ~ back_age), adjust="tukey")
+lsmeans(glm1, list(pairwise ~ group), adjust="tukey")
+
+
+#######GROWTH FROM COHORTS anf fitted regression.
+
+#MALE lengt_cohorts_ byage_MALE
+
+bl.f$group<- factor(bl.f$group, levels = c("80-86", "94-99", "00-03", "12-15"))
+bl.m$group<- factor(bl.m$group, levels = c("80-86", "94-99", "00-03", "12-15"))
+bl.m <-  subset(bl.m, N!= 0)
+
+
+p1 <- ggplot(bl.m, aes(x=group, y=back_length, colour=back_age, group=back_age))+ 
+  geom_errorbar(aes(ymin=back_length-sd, ymax=back_length+sd), colour="black", width=.5, position = pd)+
+  geom_line(position = pd)+
+  geom_point(position = pd, size=2)+
+  xlab("Cohorts")+
+  ylab("Length (mm)")+
+  ggtitle("")+
+  ylim(100,600)+
+  scale_color_manual((fill=guide_legend(title="Age")), labels = c("1+", "2+", "3+", "4+", "5+"), values= c("orange","#318CE7", "#34C924", "#ED0000", "black"))+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 8, face="bold"),
+        legend.justification=c(1,0),
+        legend.position="right")+
+  theme(legend.position = "none")
+
+#FEMALElengt_cohorts_ byage_FEMALE
+bl.f <-  subset(bl.f, N!= 0)
+
+
+p2 <- ggplot(bl.f, aes(x=group, y=back_length, colour=back_age, group=back_age))+ 
+  geom_errorbar(aes(ymin=back_length-sd, ymax=back_length+sd), colour="black", width=.5, position = pd)+
+  geom_line(position = pd)+
+  geom_point(position = pd, size=2)+
+  xlab("Cohorts")+
+  ylab("Length (mm)")+
+  ggtitle("")+
+  ylim(100,600)+
+  scale_color_manual((fill=guide_legend(title="Age")), labels = c("1+", "2+", "3+", "4+", "5+", "6+"), values= c("orange","#318CE7", "#34C924", "#ED0000", "black", "pink"))+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 12, face="bold"),
+        legend.justification=c(1,0),
+        legend.position=c(0.15,0.72))+
+  theme(legend.position = "none")
+
+
+
+grid.draw.ggmatrix <- function(x, recording = TRUE) {
+  print(x)
+}
+plot_grid(p1, p2, labels = c("A) Female", "B) Male"), nrow = 1, ncol = 2)
+
+
+leg <- get_legend(sp)
+plot_grid(bp, sp, p2, p1, labels = c("A ", "B ", "C ", "D "), rel_heights = c(2, 2), rel_widths = c(1.2,1.2), nrow = 2, ncol = 2)
+
+
+### Weight-length relationship + Back-calculation method
+
+# Omble tot 2018 Weight-Length Relationship 
+library(FSA)
+library(car)
+library(magrittr)
+library(dplyr)
+library(lsmeans)
+
+#reset R brain
+rm(list=ls())
+#getwd tells you where R is currently looking
+getwd()
+
+
+
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+data <- read.csv("ombletotal2018foranalysis.csv", sep=";", header = TRUE)
+data$Weight <- as.numeric(data$Weight)
+data$Length <- as.numeric(data$Length)
+data<- mutate(data, logW=log10(data$Weight ), logL=log10(data$Length))
+data$Sex <- as.factor(data$Sex)
+data$Age <- as.factor(data$Age)        
+
+#Regression analysis with the log data (logW is the response variable)
+fit1 <- lm(log(data$Weight)~log(data$Length))
+#Coefficents of the regression
+coef(fit1)
+#Confidence interval
+confint(fit1)
+#Anova to test if logL is a significant predictor
+Anova(fit1)#the high value of Ftest and low P mean that logL is a significant predictor of logW
+summary(fit1)
+#Making predictions for Weight
+lens <- c(50, 500)#Predict the weight at 50mm and 500mm
+nd <- data.frame(logL = log10(lens))
+plogW <- predict(fit1, nd)
+
+#Transform the log data using correction factor
+cf <- logbtcf(fit1, 10)#correction factor
+cf*(10^plogW) 
+#Confidence interval for the mean prediction
+
+#Mean wheigth
+mlogW <- predict(fit1, nd, interval = "confidence")
+cf*10^mlogW
+#Weight
+plogW<- predict(fit1, nd, interval = "prediction")
+cf*10^plogW
+
+
+###Graph
+
+par(mfrow=c(1,1))
+plot((log(data$Weight)~log(data$Length)), pch = 20,ylab = "Log Weight (g)", xlab = "Log Length (mm)", main ="Weight Length Relationship")
+reg <- lm(log(data$Weight)~log(data$Length))
+abline(reg, col="red")
+data <- subset(data, Scale.Total<="2")
+summary(reg) # <2e-16 ***
+
+cor.test(log(data$Weight),log(data$Length), method="pearson") # t=186.7, df=2872, p < 2e-16; cor=0.96
+###corrélé à fond
+
+cor.test(data$Weight, data$Length, method = "pearson") # t = 99.227, df = 2872, p-value < 2.2e-16; cor=0.87
+
+
+
+par(mfrow = c(1,1))
+plot(data$Length~data$Scale.Total, xlim=c(0, 2), ylim=c(0, 550), main = "Body-Scale relationship", xlab= "Scale length (cm)", ylab = "Body Length (mm)" )
+reg <- lm(data$Length~data$Scale.Total)
+anova(reg)
+abline(reg, col="blue", lwd = 2)
+coeff<- coefficients(reg)
+eq = paste0("y=", round(coeff[2],1), "*x- ", round(coeff[1],1))
+dl <- paste0("y=",309.2, "*x")
+fl <- paste0("y=",264.93, "*x-", 53.6)
+legend(title = "Equations", "topleft", inset = .05, legend = c(eq, dl, fl), col = c("blue", "green", "red"), lty=1, lwd = 2)
+
+
+m <- 0
+n <- 0
+length(data$Length[data$Length!=0])
+k <- 0
+
+for ( i in 1:4819){
+  l <- data$L3[i]
+  s <- data$anu3[i]
+  if (is.na(l)==FALSE & is.na(s)==FALSE){
+    n <- (l)/(s)
+    m <- m + n
+    k <- k+1
+  }
+}
+
+m <- m / k
+
+abline(0,m, col ="green", lty=1, lwd=2)
+
+
+
+m <- 0
+n <- 0
+k <- 0
+
+for ( i in 1:4819){
+  l <- data$L3[i]
+  s <- data$anu3[i]
+  if (is.na(l)==FALSE & is.na(s)==FALSE){
+    n <- (l)/(s)
+    m <- m + n
+    k <- k+1
+  }
+}
+
+
+m <- m / k
+
+abline(0,m, col ="green")
+
+
+### FRASER LEE
+setwd("D:/UNIL/Master maison de la rivière/Excel/JF")
+data <- read.csv("ombletotal2018FLCA.csv", sep=";", header = TRUE)
+
+
+plot(data$Length~data$Scale.Total, xlim=c(0, 2), ylim=c(0, 550), main = "Body-Scale relationship")
+m <- 0
+n <- 0
+k <- 0
+
+for ( i in 1:5945){
+  l <- data$L3FL[i]
+  s <- data$anu3[i]
+  if (is.na(l)==FALSE & is.na(s)==FALSE){
+    n <- (l-53.6)/(s)
+    m <- m + n
+    k <- k+1
+    
+  }
+}
+
+m <- m / k
+abline(53.6,m, col="red", lty="solid", lwd=2) # lty type de droite, lwd epaisseur
+
+
+
+## ANCOVA MALE ET FEMELLE, AGE VS LENGTH
+data$Sex <- as.factor(data$Sex)
+data$Age <- as.factor(data$Age)
+data$Maturity <- as.factor(data$Maturity)
+data1215<-subset(data, Cohort >= 2012 & Cohort<=2015)
+result <- aov(data1215$Length~data1215$Age*data1215$Sex)
+summary(result)
+
+#without interaction
+result2 <- aov(data1215$Length~data1215$Age+data1215$Sex)
+summary(result2)
+
+anova(result, result2)
+
+lsmeans(result2,list(pairwise ~ Age), adjust="tukey")
+lsmeans(result2,list(pairwise ~ Sex), adjust="tukey")
+
+#contrasts pour lm
+
+model1 <- lm(data1215$Length~data1215$Age)
+summary(model1)
+
+model2 <- lm(data1215$Length~data1215$Age*data1215$Sex)
+library(car)
+anova(model2)
+
+contrasts(data1215$Age) <- contr.sum
+contrasts(data1215$Sex) <- contr.sum
+
+model3 <- lm(data1215$Length~data1215$Age*data1215$Sex)
+anova(model3)
+summary(model3)
+
+contrasts(data1215$Sex) <- contr.helmert 
+contrasts(data1215$Age) <- contr.poly
+model4 <- lm(data1215$Length~data1215$Age*data1215$Sex)
+anova(model4)
+str(data)
+
+summary(model4)
+
+
+## juste 2012-2015
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux/Pardates/pargroupe")
+data <- read.csv("cohort1215.csv", sep=";", header = TRUE)
+data <-  subset(data, Weight != FALSE)
+data <-  subset(data, Lenght != FALSE)
+cor.test(data$Weight, data$Lenght, method = "pearson")
+
+### Age length key
+##Age-length key
+
+library(FSA)
+library(magrittr)
+library(dplyr)
+library(nmet)
+require(foreign)
+require(nnet)
+require(ggplot2)
+require(reshape2)
+
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+
+rm(list=ls())
+
+cc <- read.csv("ombletotal2018foranalysis.csv",sep =";", header = TRUE)
+cc <- subset(cc, Cohort >= 2012 & Cohort <= 2015 )
+headtail(cc)
+cc%<>%mutate(lcat10=lencat(Length, w=10))
+is.na(headtail(cc)$Age)
+cc.unaged <- filter(cc, is.na(Age))
+cc.aged <- filter(cc, !is.na(Age))
+all(is.na(cc.unaged$Age))
+all(is.na(cc.aged$Age))
+
+(alk.freq <- xtabs(~lcat10+Age, data=cc.aged))
+rowSums(alk.freq)
+
+alk <- prop.table(alk.freq, margin=1)
+round(alk,3)
+
+cc.mlr<- multinom(Age~lcat10, data=cc.aged, maxit=500)
+
+lens <- seq(40, 200, 10)
+alk.sm <- predict(cc.mlr, data.frame(lcat10=lens), type= "probs")
+row.names(alk.sm) <- lens
+round(alk.sm,3)
+
+par(mfrow=c(2,2))
+alkPlot(alk, type = "area", pal="grey", showLegend = TRUE, leg.cex = 0.7, xlab = "Total length (mm)")
+alkPlot(alk, type= "bubble", xlab = "Total length (mm)") #bubble representation of the obersverd age-length key for creek clubs.
+#the area of each circle is proportionnal to the proportion of fish in a length interval that are a given age. 
+
+
+#looking for the distribution of ages 
+
+
+len.n <- xtabs(~lcat10, data=cc)
+
+tmp <- sweep(alk, MARGIN =1, FUN ="*", STATS = len.n)
+ad1 <- colSums(tmp)
+round(prop.table(ad1),3)
+
+alkAgeDist(alk, lenA.n = rowSums(alk.freq), len.n=len.n)
+alkMeanVar(alk, Length~lcat10+Age, data=cc.aged, len.n=len.n)
+
+cc.unaged.mod <- alkIndivAge(alk, Age~Length, data=cc.unaged)           
+cc.fnl <- rbind(cc.aged, cc.unaged.mod)
+ad3 <- xtabs(~Age, data=cc.fnl)
+
+round(prop.table(ad3), 3)
+
+
+cc.sumlen <- cc.fnl%>%group_by(Age)%>%
+  summarize(n=validn(Length), mn=mean(Length, na.rm=TRUE),
+            sd=sd(Length, na.rm = TRUE), se=se(Length), na.rm=TRUE) %>%
+  as.data.frame()
+
+cc.sumlen
+
+plot(Length~Age, data=cc.fnl, pch=19, col=rgb(0,0,0,1/10), 
+     xlab="Age(years)", ylab="Total length (mm)", ylim=c(0,650))
+lines(mn~Age, data=cc.sumlen, lwd=2, lty=2)
+
+
+#among group statiscal comparaisons
+sis <- read.csv("ombletotal2018foranalysis.csv",sep =";", header = TRUE)%>%filter(!is.na(Age), !is.na(Sex))%>%
+  mutate(lcat=lencat(Length, w=25))
+mod1 <- multinom(Age~lcat, data = sis, maxit=500)
+mod2 <- multinom(Age~lcat*Sex, data=sis, maxit=500)
+
+anova(mod1, mod2) # p =0.00994, low p value show that there is difference between male and female ALK.
+
+lens <- seq(350, 675, 25)
+dfF <- data.frame(lcat=lens, Sex="F")   
+dfM <- data.frame(lcat=lens, Sex="M")
+
+alkF <- predict(mod2, dfF, type="probs")
+rownames(alkF) <- lens
+par(mfrow = c(2,1))
+alkPlot(alkF, type="area", pal="grey", xlab = "Total length (mm)", showLegend = TRUE, leg.cex = 0.7)
+alkPlot(alkF, type= "bubble", xlab = "Total length (mm)")
+
+alkM <- predict(mod2, dfM, type="probs")
+rownames(alkM) <- lens
+alkPlot(alkM, type="area", pal="grey", xlab = "Total length (mm)", showLegend = TRUE, leg.cex = 0.7)
+alkPlot(alkM, type= "bubble", xlab = "Total length (mm)")
+
+
+### Length frequency
+library(FSA)
+library(magrittr)
+library(dplyr)
+library(plotrix)
+library(Matching)
+library(tidyr)
+library(Matching)
+
+#reset R brain
+rm(list=ls())
+
+#getwd tells you where R is currently looking
+getwd()
+
+#setwd tells R where to look
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+dta <- read.csv("ombletotal2018foranalysis.csv",sep =";", header = TRUE)
+dta <- mutate(dta, lcat20=lencat(Length, w=20))
+
+
+#Subset the dataset in different years
+
+data0003 <-subset(dta, Cohort >= 2000 & Cohort <= 2003)
+data5865 <- subset(dta, Cohort >= 1958 & Cohort <= 1965)
+data8086 <- subset(dta, Cohort >= 1980 & Cohort <= 1986)
+data9499 <- subset(dta, Cohort >= 1994 & Cohort <= 1999)
+data1215<-subset(dta, Cohort >= 2012 & Cohort <= 2015 )
+
+
+
+#Length Frequency table, number of fish in each interval
+(data0003.freq.tab<- xtabs(~lcat20, data = data0003))
+(data5865.freq.tab<- xtabs(~lcat20, data = data5865))
+(data8086.freq.tab<- xtabs(~lcat20, data = data8086))
+(data9499.freq.tab<- xtabs(~lcat20, data = data9499))
+(data1215.freq.tab<- xtabs(~lcat20, data = data1215))
+
+#In percentages Years
+round(prop.table(data0003.freq.tab)*100,1)
+round(prop.table(data5865.freq.tab)*100,1)
+round(prop.table(data8086.freq.tab)*100,1)
+round(prop.table(data9499.freq.tab)*100,1)
+round(prop.table(data1215.freq.tab)*100,1)
+
+
+#pdf("Histogram Length Class Frequency- 5y.#pdf")
+par(mfrow=c(2,2))
+hist(~Length, data = data5865, breaks = seq(100,750,10), xlab = "Total Length (mm) 1954-1965")
+hist(~Length, data = data8086, breaks = seq(100,750,10), xlab = "Total Length (mm) 1980-1986")
+hist(~Length, data = data0003, breaks = seq(100,750,30), xlab = "Total Length (mm) 2000-2003")
+hist(~Length, data = data9499, breaks = seq(100,750,10), xlab = "Total Length (mm) 1994-1999")
+hist(~Length, data = data1215, breaks = seq(100,750,10), xlab = "Total Length (mm) 2012-2015")
+#dev.off()
+
+
+#Empirical Cumulative Distribution ECDF
+
+#pdf("C.confusus Cumulative Frequency distribution - 5y.#pdf")
+clr <- c("black", "orange", "#318CE7", "#34C924", "#ED0000")
+par(mfrow=c(1,1))
+plot(ecdf(data5865$Length), xlab = "Total Length (mm)",ylab= "Proportion",do.points = FALSE, verticals = TRUE, main ="Length frequency", col.01line = NULL)
+plot(ecdf(data8086$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[2], col.01line = NULL)
+plot(ecdf(data9499$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[3], col.01line = NULL)
+plot(ecdf(data0003$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[4], col.01line = NULL)
+plot(ecdf(data1215$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[5], col.01line = NULL)
+legend("bottomright", c( "1958-1965", "1980-1986", "1994-1999","2000-2003", "2012-2015"), col = clr, lty = 1, bty = "n", cex = 1)
+#dev.off()
+
+
+
+#Female
+
+dta.f <- filter(dta, Sex == "F")
+#Subset the dataset in different years
+
+data.f0003<-subset(dta.f, Cohort >= 2000 & Cohort <= 2003)
+data.f5865 <- subset(dta.f, Cohort >= 1958 & Cohort <= 1965)
+data.f8086 <- subset(dta.f, Cohort >= 1980 & Cohort <= 1986)
+data.f9499 <- subset(dta.f, Cohort >= 1994 & Cohort <= 1999)
+data.f1215<-subset(dta.f, Cohort >= 2012 & Cohort <= 2015 )
+
+
+
+#Length Frequency table, number of fish in each interval
+(data.f0003.freq.tab<- xtabs(~lcat20, data = data.f0003))
+(data.f5865.freq.tab<- xtabs(~lcat20, data = data.f5865))
+
+(data.f8086.freq.tab<- xtabs(~lcat20, data = data.f8086))
+(data.f9499.freq.tab<- xtabs(~lcat20, data = data.f9499))
+(data.f1215.freq.tab<- xtabs(~lcat20, data = data.f1215))
+
+#In percentages Years
+round(prop.table(data.f0003.freq.tab)*100,1)
+round(prop.table(data.f5865.freq.tab)*100,1)
+round(prop.table(data.f8086.freq.tab)*100,1)
+round(prop.table(data.f9499.freq.tab)*100,1)
+round(prop.table(data.f1215.freq.tab)*100,1)
+
+
+#pdf("Histogram Length Class Frequency- 5y.#pdf")
+par(mfrow=c(2,2))
+hist(~Length, data= data.f5865, breaks = seq(100,750,10), xlab = "Total Length (mm) 1954-1965")
+hist(~Length, data = data.f8086, breaks = seq(100,750,10), xlab = "Total Length (mm)  1980-1986")
+hist(~Length, data = data.f9499, breaks = seq(100,750,10), xlab = "Total Length (mm) 1994-1999")
+hist(~Length, data = data.f0003, breaks = seq(100,750,30), xlab = "Total Length (mm) 2000-2003")
+hist(~Length, data = data.f1215, breaks = seq(100,750,10), xlab = "Total Length (mm) 2012-2015")
+#dev.off()
+
+
+#Empirical Cumulative Distribution ECDF
+
+#pdf("C.confusus Cumulative Frequency distribution - 5y.#pdf")
+clr <- c("orange", "#318CE7", "#34C924", "#ED0000")
+par(mfrow=c(1,2))
+#plot(ecdf(data.f5865$Length), xlab = "Total Length (mm),ylab= "Proportion",do.points = FALSE, verticals = TRUE, main ="", col.01line = NULL)
+
+plot(ecdf(data.f8086$Length), xlab = "Total Length (mm)",ylab= "Proportion", do.points = FALSE, verticals = TRUE, main="Length Frequency Female", col = clr[1], col.01line = NULL)
+plot(ecdf(data.f9499$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[2], col.01line = NULL)
+plot(ecdf(data.f0003$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[3], col.01line = NULL)
+plot(ecdf(data.f1215$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[4], col.01line = NULL)
+legend("bottomright", c("1980-1986", "1994-1999", "2000-2003", "2012-2015"), col = clr, lty = 1, bty = "n", cex = 1)
+#dev.off()
+
+
+#Males
+
+dta.m <- filter(dta, Sex == "M")
+#Subset the dataset in different years
+
+data.m0003<-subset(dta.m, Cohort >= 2000 & Cohort <= 2003)
+data.m5865 <- subset(dta.m, Cohort >= 1958 & Cohort <= 1965)
+data.m8086 <- subset(dta.m, Cohort >= 1980 & Cohort <= 1986)
+data.m9499 <- subset(dta.m, Cohort >= 1994 & Cohort <= 1999)
+data.m1215<-subset(dta.m, Cohort >= 2012 & Cohort <= 2015 )
+
+
+
+#Length Frequency table, number of fish in each interval
+(data.m0003.freq.tab<- xtabs(~lcat20, data = data.m0003))
+(data.m5865.freq.tab<- xtabs(~lcat20, data = data.m5865))
+(data.m8086.freq.tab<- xtabs(~lcat20, data = data.m8086))
+(data.m9499.freq.tab<- xtabs(~lcat20, data = data.m9499))
+(data.m1215.freq.tab<- xtabs(~lcat20, data = data.m1215))
+
+#In percentages Years
+round(prop.table(data.m0003.freq.tab)*100,1)
+round(prop.table(data.m5865.freq.tab)*100,1)
+round(prop.table(data.m8086.freq.tab)*100,1)
+round(prop.table(data.m9499.freq.tab)*100,1)
+round(prop.table(data.m1215.freq.tab)*100,1)
+
+
+#pdf("Histogram Length Class Frequency- 5y.#pdf")
+par(mfrow=c(2,2))
+#hist(~Length, data= data.m5865, breaks = seq(100,750,10), xlab = "Total Length (mm) 1954-1965")
+hist(~Length, data = data.m8086, breaks = seq(100,750,10), xlab = "Total Length (mm) 1980-1986")
+hist(~Length, data = data.m9499, breaks = seq(100,750,10), xlab = "Total Length (mm) 1994-1999")
+hist(~Length, data = data.m0003, breaks = seq(100,750,30), xlab = "Total Length (mm) 2000-2003")
+hist(~Length, data = data.m1215, breaks = seq(100,750,10), xlab = "Total Length (mm) 2012-2015")
+#dev.off()
+
+
+#Empirical Cumulative Distribution ECDF
+
+#pdf("C.confusus Cumulative Frequency distribution - 5y.#pdf")
+par(mfrow=c(1,1))
+clr <- c("orange", "#318CE7", "#34C924", "#ED0000")
+#plot(ecdf(data.m5865$Length), xlab = "Total Length (mm)",ylab= "Proportion",do.points = FALSE, verticals = TRUE, main ="", col.01line = NULL)
+plot(ecdf(data.m8086$Length), xlab = "Total Length (mm)",ylab= "Proportion",do.points = FALSE, verticals = TRUE, main="Lenght Frequency Male",col = clr[1], col.01line = NULL)
+plot(ecdf(data.m9499$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[2], col.01line = NULL)
+plot(ecdf(data.m0003$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[3], col.01line = NULL)
+plot(ecdf(data.m1215$Length), add = TRUE, do.points = FALSE, verticals = TRUE, col = clr[4], col.01line = NULL)
+legend("bottomright", c( "1980-1986", "1994-1999", "2000-2003", "2012-2015"), col = clr, lty = 1, bty = "n", cex = 1.3)
+#dev.off()
+
+
+#Statistical comparison among Group
+
+#Kolmogorv-Smirnov test to compare ECDF's location, dispersion and shape of disribution between groups.
+
+#Male and Female overall
+ks.test(dta.m$Length, dta.f$Length)
+MF.ksb.conf <- ks.boot(dta.m$Length, dta.f$Length, nboots = 5000)
+summary(MF.ksb.conf)
+
+# males females curve (each cohort)
+ks.test(data.m0003$Length, data.f0003$Length)
+MF.ksb.conf <- ks.boot(data.m0003$Length, data.f0003$Length, nboots = 5000) #fait des itérations sur tes stats
+#sert pour confirmer le première p-value 
+#non nécéssaire ici, deja des p value très forte
+summary(MF.ksb.conf)
+
+ks.test(data.m9499$Length, data.f9499$Length)
+
+ks.test(data.m8086$Length, data.f8086$Length)
+ks.test(data.m1215$Length, data.f1215$Length)
+##regarder de nouveau page 123 du livre pour les stats correctes
+
+#pas de diff entre male et femelle de 9499 visiblement
+
+
+
+### ne pas prendre les echantillons de guillaume , ils prennent trop de poids
+
+### Maturity par claisse de taille et par age
+data1215<- mutate(data1215, lcat20=lencat(Length, w=10))
+data1215 <- subset(data1215, Year=="2018")
+
+min(data1215$lcat20)
+max(data1215$lcat20)
+
+
+cat1<-subset(data1215, lcat20 >=249 & lcat20 <=251)
+cat2<-subset(data1215, lcat20>=251 & lcat20<=299)
+cat3<-subset(data1215, lcat20>= 300 &lcat20<=349)
+cat4<-subset(data1215, lcat20>=350 & lcat20<=399)
+cat5<-subset(data1215, lcat20>=400 & lcat20<=449)
+cat6<-subset(data1215, lcat20>=500 & lcat20<=549)
+cat7<-subset(data1215, lcat20>=550 & lcat20<=599)
+cat8<- subset(data1215, lcat20>=600)
+
+cat1f <- subset(cat1, Sex=="F")
+cat2f <- subset(cat2, Sex=="F")
+cat3f <- subset(cat3, Sex=="F")
+cat4f <- subset(cat4, Sex=="F")
+cat5f <- subset(cat5, Sex=="F")
+cat6f <- subset(cat6, Sex=="F")
+cat7f <- subset(cat7, Sex=="F")
+
+
+cat1m <- subset(cat1, Sex=="M")
+cat2m <- subset(cat2, Sex=="M")
+cat3m <- subset(cat3, Sex=="M")
+cat4m <- subset(cat4, Sex=="M")
+cat5m <- subset(cat5, Sex=="M")
+cat6m <- subset(cat6, Sex=="M")
+cat7m <- subset(cat7, Sex=="M")
+
+
+### cb d'immature, en dev, matures dans chaque classe de taille
+##FEMELLE
+
+length(cat1f$Maturity[cat1f$Maturity=="I"])
+length(cat2f$Maturity[cat2f$Maturity=="I"])
+length(cat3f$Maturity[cat3f$Maturity=="I"])
+length(cat4f$Maturity[cat4f$Maturity=="I"])
+length(cat5f$Maturity[cat5f$Maturity=="I"])
+length(cat6f$Maturity[cat6f$Maturity=="I"])
+length(cat7f$Maturity[cat7f$Maturity=="I"])
+
+length(cat1f$Maturity[cat1f$Maturity=="D"])
+length(cat2f$Maturity[cat2f$Maturity=="D"])
+length(cat3f$Maturity[cat3f$Maturity=="D"])
+length(cat4f$Maturity[cat4f$Maturity=="D"])
+length(cat5f$Maturity[cat5f$Maturity=="D"])
+length(cat6f$Maturity[cat6f$Maturity=="D"])
+length(cat7f$Maturity[cat7f$Maturity=="D"])
+
+length(cat1f$Maturity[cat1f$Maturity=="M"])
+length(cat2f$Maturity[cat2f$Maturity=="M"])
+length(cat3f$Maturity[cat3f$Maturity=="M"])
+length(cat4f$Maturity[cat4f$Maturity=="M"])
+length(cat5f$Maturity[cat5f$Maturity=="M"])
+length(cat6f$Maturity[cat6f$Maturity=="M"])
+length(cat7f$Maturity[cat7f$Maturity=="M"])
+
+###MALE
+
+length(cat1m$Maturity[cat1m$Maturity=="I"])
+length(cat2m$Maturity[cat2m$Maturity=="I"])
+length(cat3m$Maturity[cat3m$Maturity=="I"])
+length(cat4m$Maturity[cat4m$Maturity=="I"])
+length(cat5m$Maturity[cat5m$Maturity=="I"])
+length(cat6m$Maturity[cat6m$Maturity=="I"])
+length(cat7m$Maturity[cat7m$Maturity=="I"])
+
+length(cat1m$Maturity[cat1m$Maturity=="D"])
+length(cat2m$Maturity[cat2m$Maturity=="D"])
+length(cat3m$Maturity[cat3m$Maturity=="D"])
+length(cat4m$Maturity[cat4m$Maturity=="D"])
+length(cat5m$Maturity[cat5m$Maturity=="D"])
+length(cat6m$Maturity[cat6m$Maturity=="D"])
+length(cat7m$Maturity[cat7m$Maturity=="D"])
+
+length(cat1m$Maturity[cat1m$Maturity=="M"])
+length(cat2m$Maturity[cat2m$Maturity=="M"])
+length(cat3m$Maturity[cat3m$Maturity=="M"])
+length(cat4m$Maturity[cat4m$Maturity=="M"])
+length(cat5m$Maturity[cat5m$Maturity=="M"])
+length(cat6m$Maturity[cat6m$Maturity=="M"])
+length(cat7m$Maturity[cat7m$Maturity=="M"])
+
+##ce que j'ai crée ici, je l'utilise dans le script "maturityperage"
+
+### Boxplot maturity
+### Diet
+
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+#reset R brain
+rm(list=ls())
+library(car);library(lme4);library(nlme);library(knitr);library(MASS)
+#Reading the Datasets
+df <- read.csv("ombletotal2018foranalysis.csv", sep=";", header = TRUE)
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux/Pardates/pargroupe")
+
+
+data0003 <- read.csv("cohort0003.csv", sep=";", header = TRUE)
+data5865 <- read.csv("cohort5865.csv", sep=";", header = TRUE)
+data8086 <- read.csv("cohort8086.csv", sep=";", header = TRUE)
+data9499 <- read.csv("cohort9499.csv", sep=";", header = TRUE)
+data1215 <- read.csv("cohort1215.csv", sep=";", header = TRUE)
+
+
+#######################
+####### 12-15 #########
+#######################
+dta.m <- subset(data1215, Sex=="M")
+dta.f <- subset(data1215, Sex =="F")
+
+dta.m.imat <- subset(dta.m, Maturity=="I" )
+dta.m.endev <- subset(dta.m, Maturity=="D" )
+dta.m.mat <- subset(dta.m, Maturity=="M" )
+
+dta.f.imat <- subset(dta.f, Maturity=="I" )
+dta.f.endev <- subset(dta.f, Maturity=="D" )
+dta.f.mat <- subset(dta.f, Maturity=="M" )
+
+
+plot(dta.m$Maturity, dta.m$Lenght)
+plot(dta.f$Maturity, dta.f$Lenght)
+
+
+par(mfrow = c(1,2))
+boxplot(dta.m.imat$Lenght, dta.m.endev$Lenght, dta.m.mat$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Male 2018")
+boxplot(dta.f.imat$Lenght, dta.f.endev$Lenght, dta.f.mat$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Female 2018")
+par(mfrow = c(1,1))
+boxplot(dta.f.mat$Lenght, dta.m.mat$Lenght, names = c("Female", "Male"), xlab="Sexe", ylab="Length (mm)", main = "Length comparaison 2018")
+
+#remove.packages(devtools::install_github("mikabr/ggpirate"))
+library(ggpirate)
+library(ggplot2)
+library(devtools)
+
+dev.off()
+
+data1215 <-  subset(data1215, Maturity != FALSE)
+data1215$Maturity<- factor(data1215$Maturity, levels = c("I", "D", "M"))
+
+g3 <- ggplot(data1215, aes(x=Maturity, y=Lenght, colour=Maturity, group=Maturity)) +
+  geom_pirate()+
+  facet_wrap(~Sex)+
+  xlab("Maturity scale")+
+  ylab("Length")+
+  ylim(200,600)+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  scale_color_manual(values= c("red", "blue", "#66CC00"))+
+  theme(legend.position = "none")
+
+g4 <- ggplot(data1215, aes(x=Maturity, y=Lenght, colour=Maturity, group=Maturity)) +
+  geom_boxplot()+ facet_wrap(~Sex)+
+  xlab("Maturity scale")+
+  ylab("Length")+
+  ylim(200,600)+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  scale_color_manual(values= c("red", "blue", "#66CC00"))+
+  theme(legend.position = "none")
+
+plot_grid(bp, sp, g3, g4,labels = c("A ", "B ", "C", "D"), nrow = 2, ncol = 2,  rel_heights = c(1, 1), rel_widths = c(1,1))
+
+
+shapiro.test(dta.f.mat$Lenght) 
+shapiro.test(dta.m.mat$Lenght) ## Not a normal distribution
+
+wilcox.test(dta.f.mat$Lenght, dta.m.mat$Lenght)
+wilcox.test(dta.f.imat$Lenght, dta.m.imat$Lenght)
+wilcox.test(dta.f.endev$Lenght, dta.m.endev$Lenght)
+
+#femelle
+wilcox.test(dta.f.endev$Lenght, dta.f.mat$Lenght)
+wilcox.test(dta.f.endev$Lenght, dta.f.imat$Lenght)
+wilcox.test(dta.f.mat$Lenght, dta.f.imat$Lenght)
+
+#males
+wilcox.test(dta.m.endev$Lenght, dta.m.mat$Lenght)
+wilcox.test(dta.m.endev$Lenght, dta.m.imat$Lenght)
+wilcox.test(dta.m.mat$Lenght, dta.m.imat$Lenght)
+## Ultra significatif *** il y a donc bien une différence entre la taille à laquelle les femelles
+## atteignent leur maturité et les males!
+
+
+
+##############
+####80-86 ####
+##############
+dta.m8086 <- subset(data8086, Sex=="M")
+dta.f8086 <- subset(data8086, Sex =="F")
+
+dta.m.imat8086 <- subset(dta.m8086, Maturity=="I" )
+dta.m.endev8086 <- subset(dta.m8086, Maturity=="D" )
+dta.m.mat8086 <- subset(dta.m8086, Maturity=="M" )
+
+dta.f.imat8086 <- subset(dta.f8086, Maturity=="I" )
+dta.f.endev8086 <- subset(dta.f8086, Maturity=="D" )
+dta.f.mat8086 <- subset(dta.f8086, Maturity=="M" )
+
+
+plot(dta.m8086$Maturity, dta.m8086$Lenght)
+plot(dta.f8086$Maturity, dta.f8086$Lenght)
+
+
+par(mfrow = c(1,2))
+boxplot(dta.m.imat8086$Lenght, dta.m.endev8086$Lenght, dta.m.mat8086$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Male 8086")
+boxplot(dta.f.imat8086$Lenght, dta.f.endev8086$Lenght, dta.f.mat8086$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Female 8086")
+par(mfrow = c(1,1))
+boxplot(dta.f.mat8086$Lenght, dta.m.mat8086$Lenght, names = c("Female", "Male"), xlab="Sexe", ylab="Length (mm)", main = "Length comparaison 1987")
+
+shapiro.test(dta.f.mat8086$Lenght) 
+shapiro.test(dta.m.mat8086$Lenght) ## Not a normal distribution
+
+wilcox.test(dta.f.mat8086$Lenght, dta.m.mat8086$Lenght)
+## ultra significatif donc bien différent
+
+
+##############
+#### 94-99 ####
+##############
+dta.m9499 <- subset(data9499, Sex=="M")
+dta.f9499 <- subset(data9499, Sex =="F")
+
+dta.m.imat9499 <- subset(dta.m9499, Maturity=="I" )
+dta.m.endev9499 <- subset(dta.m9499, Maturity=="D" )
+dta.m.mat9499 <- subset(dta.m9499, Maturity=="M" )
+
+dta.f.imat9499 <- subset(dta.f9499, Maturity=="I" )
+dta.f.endev9499 <- subset(dta.f9499, Maturity=="D" )
+dta.f.mat9499 <- subset(dta.f9499, Maturity=="M" )
+
+
+plot(dta.m9499$Maturity, dta.m9499$Lenght)
+plot(dta.f9499$Maturity, dta.f9499$Lenght)
+
+
+par(mfrow = c(2,2))
+boxplot(dta.m.imat9499$Lenght, dta.m.endev9499$Lenght, dta.m.mat9499$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Length in fonction of the Maturity of Male 9499")
+boxplot(dta.f.imat9499$Lenght, dta.f.endev9499$Lenght, dta.f.mat9499$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Length in fonction of the Maturity of Female 9499")
+boxplot(dta.f.mat9499$Lenght, dta.m.mat9499$Lenght, names = c("Female", "Male"), xlab="Sexe", ylab="Length (mm)", main = "Difference of Length for Mature Male and Female")
+
+
+
+######################
+# ON A PAS DE MATURITY SCALE POUR CEUX DE 9499 DONC FORCEMENT CES ANALYSES NE FONCTIONNENT PAS
+#############################
+
+
+##############
+#### 0003 ####
+##############
+dta.m0003 <- subset(data0003, Sex=="M")
+dta.f0003 <- subset(data0003, Sex =="F")
+
+dta.m.imat0003 <- subset(dta.m0003, Maturity=="I" )
+dta.m.endev0003 <- subset(dta.m0003, Maturity=="D" )
+dta.m.mat0003 <- subset(dta.m0003, Maturity=="M" )
+
+dta.f.imat0003 <- subset(dta.f0003, Maturity=="I" )
+dta.f.endev0003 <- subset(dta.f0003, Maturity=="D" )
+dta.f.mat0003 <- subset(dta.f0003, Maturity=="M" )
+
+
+plot(dta.m0003$Maturity, dta.m0003$Lenght)
+plot(dta.f0003$Maturity, dta.f0003$Lenght)
+
+
+par(mfrow = c(1,2))
+boxplot(dta.m.imat0003$Lenght, dta.m.endev0003$Lenght, dta.m.mat0003$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Male 2000-2003")
+boxplot(dta.f.imat0003$Lenght, dta.f.endev0003$Lenght, dta.f.mat0003$Lenght, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Length (mm)", main = "Female 2000-2003")
+boxplot(dta.f.mat0003$Lenght, dta.m.mat0003$Lenght, names = c("Female", "Male"), xlab="Sexe", ylab="Length (mm)", main = "Difference of Length for Mature Male and Female")
+
+shapiro.test(dta.f.mat0003$Lenght) 
+shapiro.test(dta.m.mat0003$Lenght) ## Not a normal distribution
+
+
+## Pas assez de données 
+
+
+### COMPARAISON MOYENNE
+
+mean(dta.f.mat$Lenght) # 430.3043
+mean(dta.f.mat8086$Lenght) # 390.1202
+mean(dta.f.mat9499$Lenght) # NA 
+mean(dta.f.mat0003$Lenght) # NA (pas de connées de femelles matures)
+
+mean(dta.m.mat$Lenght) # 377.5139
+mean(dta.m.mat8086$Lenght) # 329.5277
+mean(dta.m.mat9499$Lenght) # NA 
+mean(dta.m.mat0003$Lenght) # NA
+
+#comparaison 80-86 et 12-15
+par(mfrow = c(1,1))
+boxplot( dta.f.mat8086$Lenght, dta.f.mat$Lenght, dta.m.mat8086$Lenght, dta.m.mat$Lenght, names=c("F 80-86", "F 12-15",  "M 80-86", "M 12-15"), xlab="Maturity", ylab="Length (mm)", main = "Comparaison between 1980-1986 and 2012-2015")
+
+shapiro.test(dta.f.mat$Lenght)
+shapiro.test(dta.f.mat8086$Lenght) 
+shapiro.test(dta.m.mat$Lenght)
+shapiro.test(dta.m.mat8086$Lenght) ######## Ne suit pas une distriution normale 
+
+wilcox.test(dta.f.mat$Lenght, dta.f.mat8086$Lenght) # p value 3.814e-14 ***
+wilcox.test(dta.m.mat$Lenght, dta.m.mat8086$Lenght) # p value 2.2e-16 ***
+#donc super significatif. On a deja vu que les males et femelles au sein des même cohortes etaient différents
+# et là on compare entre les 2 lots de cohortes.
+
+
+
+################################################################################
+###############################################################################
+####################### AGE #################################################
+######################################################################
+
+############
+### 12-15 ##
+#############
+
+
+plot(dta.m$Age, dta.m$Maturity)
+plot(dta.f$Maturity, dta.f$Age)
+
+
+par(mfrow = c(1,2))
+boxplot(dta.m.imat$Age, dta.m.endev$Age, dta.m.mat$Age, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Age (mm)", main = "Age in fonction of the Maturity of Male 2018")
+boxplot(dta.f.imat$Age, dta.f.endev$Age, dta.f.mat$Age, names=c("Imature", "In development", "Mature"), xlab="Maturity", ylab="Age (mm)", main = "Age in fonction of the Maturity of Female 2018")
+boxplot(dta.f.mat$Age, dta.m.mat$Age, names = c("Female", "Male"), xlab="Sexe", ylab="Age (mm)", main = "Difference of Age for Mature Male and Female")
+
+### ca veut pas dire grand chose
+
+
+### MODELES
+# quels facteurs influencent la maturité 
+# est ce que l'accès à certaines ressources influencent la maturité ?
+
+dta.m8086$Maturity=as.numeric(dta.m8086$Maturity)
+dta.m$Maturity=as.numeric(dta.m$Maturity)
+dta.f8086$Maturity=as.numeric(dta.f8086$Maturity)
+dta.f$Maturity=as.numeric(dta.f$Maturity)
+m8086 <- lm(dta.m8086$Maturity~dta.m8086$Lenght)
+f8086 <- lm(dta.f8086$Maturity~dta.f8086$Lenght)
+m1215 <- lm(dta.m$Maturity~dta.m$Lenght)
+f1215 <- lm(dta.f$Maturity~dta.f$Lenght)
+
+summary(m8086)
+summary(f8086)
+summary(m1215)
+summary(f1215)
+
+
+
+### PCA
+##L'information contenue dans un jeu de données correspond à la variance ou l'inertie totale 
+##qu'il contient. L'objectif de l'ACP est d'identifier les directions 
+##(i.e., axes principaux ou composantes principales) le long desquelles la variation des données est maximale.
+##En d'autres termes, l'ACP réduit les dimensions d'une donnée multivariée à deux ou trois 
+##composantes principales, qui peuvent être visualisées graphiquement, 
+##en perdant le moins possible d'information.
+
+
+#####################
+### Males dataset ###
+#####################
+
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/esto")
+
+#install.packages("FactoMineR")
+library("FactoMineR")
+#install.packages("factoextra")
+library(factoextra)
+#install.packages("missMDA")
+library(missMDA)
+
+#reset R brain
+rm(list=ls())
+
+dta <- read.csv("stomactot_1.csv", sep=";", header = TRUE)
+dta1 <- read.csv("stomactot.csv", sep=";", header = TRUE)
+
+### Specify in the dataset if I have a caregorical variable or more than one and transform it
+#dta.m <- dummy.data.frame(dta, names = c("Sex"))
+dta.m <- subset(dta, Sex == "2")
+dta.m <- subset(dta.m, select = -Sex)
+
+
+### After a first PCA I deleted the factors that explained less variability. The closer to the center of the circle
+dta.m <- subset(dta.m, select=-c(Weight, Mois,  Maturity, Cohorte, Age, Fullness, Totalpoints, X, X.1, X.2, X.3, X.4, X.5, X.6, X.7))
+
+### In questo modo se ho dei valori mancanti non vado ad influenzare i risultati usando la mediana 
+### impute missing values with median
+dta.m$alpha.FL[is.na(dta.m$alpha.FL)] <- median(dta.m$alpha.FL, na.rm = TRUE)
+dta.m$alpha.CA[is.na(dta.m$alpha.CA)] <- median(dta.m$alpha.CA, na.rm = TRUE)
+
+res.pca <- PCA(dta.m,scale.unit = T, graph = FALSE)
+
+
+### The output of the function PCA() is a list including
+print(res.pca)
+res.pca$var$contrib
+
+### Interpreting PCA
+### Variances of the principal components
+### The proportion of variation retained by the principal components (PCs) can be extracted as follow
+eigenvalues <- res.pca$eig
+head(eigenvalues[, 1:2])
+
+### The percentage of variation is given by: eigenvalue/number of dimension 
+### A method to retain variables is to take all of the one that have a eigenvalue > 1. Only with standardize data! (Kaiser 1961)
+### This often correspond to the percentage of variation retained by the component that should be more than 85-90%
+
+### The amount of variation retained by each PC is called eigenvalues. 
+### The first PC corresponds to the direction with the maximum amount of variation in the data set. 
+#install.packages("factoextra")
+library("factoextra")
+
+### The importance of PCs can be visualized using a scree plot
+fviz_eig(res.pca, addlabels = T, ylim=c(0,75))
+fviz_screeplot(res.pca, ncp=10,addlabels = T, ylim=c(0,75))
+
+### The correlation between a variable and a PC is called loading.
+### The variables can be plotted as points in the component space using their loadings as coordinates
+head(res.pca$var$coord)
+
+### Visualization of the variables on the factor map
+fviz_pca_var(res.pca, col.var = "black")
+### Correlation circle can help to visualize the most correlated variables (i.e, variables that group together!!!!)
+### Negative correlated varibles are in the opposite sides of the circle!!!
+### The circle is the "correlation circle", as more one variable is correlated with its pc as closer it is to the circle.
+
+### Cos2 : quality of the representation for variables on the factor map
+### The squared loadings for variables are called cos2 ( = cor * cor = coord * coord).
+##La corrélation entre une variable et une composante principale (PC) 
+##est utilisée comme coordonnées de la variable sur la composante principale. 
+##La représentation des variables diffère de celle des observations: 
+##les observations sont représentées par leurs projections, mais les variables 
+##sont représentées par leurs corrélations (Abdi and Williams 2010).
+
+head(res.pca$var$cos2)
+
+
+
+### The quality of representation is called COS2
+#install.packages("corrplot")
+library(corrplot)
+var <- get_pca_var(res.pca)
+#pdf("24-03 Correlation plot sires.pdf")
+corrplot_1 <- corrplot(var$cos2, is.corr=FALSE)
+dev.off()
+### The sum of the cos2 for variables on the principal components is equal to one.
+### If a variable is perfectly represented by only two components, the sum of the cos2 is equal to one.
+### In this case the variables will be positioned on the circle of correlations.
+### For some of the variables, more than 2 components are required to perfectly represent the data.
+### In this case the variables are positioned inside the circle of correlations.
+### The cos2 values are used to estimate the quality of the representation
+### The closer a variable is to the circle of correlations, the better its representation on the factor map
+### (and the more important it is to interpret these components)
+### Variables that are closed to the center of the plot are less important for the first components.
+
+fviz_pca <- fviz_pca_var(res.pca, col.var="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.5) + theme_minimal()
+fviz_pca_var(res.pca, col.var = "cos2", gradient.cols = c("#00AFBB", "#E7B800"), repel = TRUE)
+
+
+### Contributions of the variables to the principal components
+### Variables that are correlated with PC1 and PC2 are the most important in explaining the variability in the data set!!!
+### Variables that does not correlated with any PC or correlated with the last dimensions
+### are variables with low contribution and might be removed to simplify the overall analysis!!!
+### The contributions of variables in accounting for the variability in a given
+### principal component are (in percentage) : (variable.cos2 * 100) / (total cos2 of the component)
+### The contribution of variables can be extracted as follow :
+
+head(res.pca$var$contrib)
+
+### The larger the value of the contribution, the more the variable contributes to the component
+
+# Contributions of variables on PC1
+pdf("Contribution to dim 1 Omble.pdf")
+fviz_contrib(res.pca, choice = "var", axes = 1)
+head(var$contrib, 15) ## pour extraire la contribution des 15 premieres variables par ex
+dev.off()
+# Contributions of variables on PC2
+pdf("Contribution to dim 2 Omble_m.pdf")
+fviz_contrib(res.pca, choice = "var", axes = 2)
+dev.off()
+### If the contribution of the variables were uniform, the expected value would be 1/length(variables)
+### The red dashed line on the graph above indicates the expected average contribution. For a given component,
+### a variable with a contribution larger than this cut off could be considered as important in contributing to the component
+
+# Total contribution from PC1 to PC5
+fviz_contrib(res.pca, choice = "var", axes = 1:5)
+
+### How do you calculate the total contribution of a variable for 2 or more axes?
+### Let C1 and C2 be the contributions of a given variable on PC1 and PC2, respectively
+### Let Eig1 and Eig2 be the eigenvalues of PC1 and PC2 respectively. 
+### Recall that eigenvalues measure the amount of variation retained by each PC.
+### The total contribution of a variable, on explaining the variations retained by PC1 an PC2,
+### is calculated as follow : (C1 * Eig1) + (C2 * Eig2)
+
+# Control variable colors using their contributions
+pdf("Pca variables contribution.pdf")
+fviz_pca_var(res.pca, col.var="contrib")
+dev.off()
+# Change the gradient color
+fviz_pca_var(res.pca, col.var="contrib") +
+  scale_color_gradient2(low="green", mid="blue", 
+                        high="red", midpoint=4) + theme_minimal()
+### This is helpful to highlight the most important variables in explaining the variations retained by the principal components.
+### Visual inspection of variable contributions on PCs is nice??? 
+### But, How to extract the most significantly associated variables with a given principal component?
+
+### Dimension description
+### The function dimdesc()[in FactoMineR] can be used to identify the most correlated variables with a given principal component.
+
+#install.packages("FactoMineR")
+library(FactoMineR)
+
+res.desc <- dimdesc(res.pca, axes = c(1,2))
+# Description of dimension 1
+res.desc$Dim.1
+res.desc$Dim.2
+### The top significant values are the one with lower p-value (the output is not ordered in significance scale so check all the values until the last)
+
+### Graph of individuals
+fviz_pca_ind(res.pca)
+
+fviz_pca_ind(res.pca, col.ind="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.50) + theme_minimal()
+
+# Contributions of individuals to PC1
+fviz_contrib(res.pca, choice = "ind", axes = 1)
+# Contributions of the individuals to PC2
+fviz_contrib(res.pca, choice = "ind", axes = 2)
+# Total contribution on PC1 and PC2
+fviz_contrib(res.pca, choice = "ind", axes = 1:5)
+
+
+pca_david <- princomp(dta.m, cor = T)
+summary(pca_david)
+plot(pca_david)
+pca_david$scores
+dta.m$pc1 <- pca_david$scores[,1]
+dta.m$pc2 <- pca_david$scores[,2]
+dta.m$pc3 <- pca_david$scores[,3]
+
+write.table(dta.m, "Omble PCA 09.11.18")
+
+#########################
+#### Females dataset ####
+#########################
+
+
+dta <- read.csv("stomactot_1.csv", sep=";", header = TRUE)
+
+### Specify in the dataset if I have a caregorical variable or more than one and transform it
+#dta1 <- dummy.data.frame(dta, names = c("Sex"))
+dta.f <- subset(dta, Sex == "1")
+dta.f <- subset(dta.f, select = -Sex)
+
+
+### After a first PCR I deleted the factors that explained less variability. The closer to the center of the circle
+#dta.f <- subset(dta.f, select=-c(Area_ratio, Body_depth,Gillracker, Eye_diameter, Head_length,
+#Surface.area_CSarea, Average_depth, Circularity)) 
+
+
+### In questo modo se ho dei valori mancanti non vado ad influenzare i risultati usando la mediana 
+### impute missing values with median
+dta.f$alpha.FL[is.na(dta.f$alpha.FL)] <- median(dta.f$alpha.FL, na.rm = TRUE)
+dta.f$alpha.CA[is.na(dta.f$alpha.CA)] <- median(dta.f$alpha.CA, na.rm = TRUE)
+
+dta$alpha.FL[is.na(dta$alpha.FL)] <- median(dta$alpha.FL, na.rm = TRUE)
+dta$alpha.CA[is.na(dta$alpha.CA)] <- median(dta$alpha.CA, na.rm = TRUE)
+res.pca <- PCA(dta,scale.unit = T, graph = FALSE)
+
+### The output of the function PCA() is a list including
+print(res.pca)
+res.pca$var$contrib
+
+### Interpreting PCA
+### Variances of the principal components
+### The proportion of variation retained by the principal components (PCs) can be extracted as follow
+eigenvalues <- res.pca$eig
+head(eigenvalues[, 1:2])
+
+### The percentage of variation is given by: eigenvalue/number of dimension 
+### A method to retain variables is to take all of the one that have a eigenvalue > 1. Only with standardize data! (Kaiser 1961)
+### This often correspond to the percentage of variation retained by the component that should be more than 85-90%
+
+### The amount of variation retained by each PC is called eigenvalues. 
+### The first PC corresponds to the direction with the maximum amount of variation in the data set. 
+library("factoextra")
+### The importance of PCs can be visualized using a scree plot
+fviz_eig(res.pca, addlabels = T, ylim=c(0,75))
+fviz_screeplot(res.pca, ncp=10,addlabels = T, ylim=c(0,75))
+
+### The correlation between a variable and a PC is called loading.
+### The variables can be plotted as points in the component space using their loadings as coordinates
+head(res.pca$var$coord)
+
+### Visualization of the variables on the factor map
+fviz_pca_var(res.pca, col.var = "black")
+### Correlation circle can help to visualize the most correlated variables (i.e, variables that group together!!!!)
+### Negative correlated varibles are in the opposite sides of the circle!!!
+### The circle is the "correlation circle", as more one variable is correlated with its pc as closer it is to the circle.
+
+### Cos2 : quality of the representation for variables on the factor map
+### The squared loadings for variables are called cos2 ( = cor * cor = coord * coord).
+
+head(res.pca$var$cos2)
+
+
+
+### The quality of representation is called COS2
+library(corrplot)
+#pdf("Correlation plot Dam.pdf")
+var <- get_pca_var(res.pca)
+corrplot(var$cos, is.corr=FALSE)
+#dev.off()
+### The sum of the cos2 for variables on the principal components is equal to one.
+### If a variable is perfectly represented by only two components, the sum of the cos2 is equal to one.
+### In this case the variables will be positioned on the circle of correlations.
+### For some of the variables, more than 2 components are required to perfectly represent the data.
+### In this case the variables are positioned inside the circle of correlations.
+### The cos2 values are used to estimate the quality of the representation
+### The closer a variable is to the circle of correlations, the better its representation on the factor map
+### (and the more important it is to interpret these components)
+### Variables that are closed to the center of the plot are less important for the first components.
+
+fviz_pca_var(res.pca, col.var="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.5) + theme_minimal()
+
+
+### Contributions of the variables to the principal components
+### Variables that are correlated with PC1 and PC2 are the most important in explaining the variability in the data set!!!
+### Variables that does not correlated with any PC or correlated with the last dimensions
+### are variables with low contribution and might be removed to simplify the overall analysis!!!
+### The contributions of variables in accounting for the variability in a given
+### principal component are (in percentage) : (variable.cos2 * 100) / (total cos2 of the component)
+### The contribution of variables can be extracted as follow :
+
+head(res.pca$var$contrib)
+
+### The larger the value of the contribution, the more the variable contributes to the component
+
+# Contributions of variables on PC1
+pdf("Contribution to dim 1 Omble_f.pdf")
+fviz_contrib(res.pca, choice = "var", axes = 1)
+#dev.off()
+# Contributions of variables on PC2
+pdf("Contribution to dim 2 Omble_f.pdf")
+fviz_contrib(res.pca, choice = "var", axes = 2)
+#dev.off()
+### If the contribution of the variables were uniform, the expected value would be 1/length(variables)
+### The red dashed line on the graph above indicates the expected average contribution. For a given component,
+### a variable with a contribution larger than this cut off could be considered as important in contributing to the component
+
+# Total contribution from PC1 to PC5
+fviz_contrib(res.pca, choice = "var", axes = 1:5)
+
+### How do you calculate the total contribution of a variable for 2 or more axes?
+### Let C1 and C2 be the contributions of a given variable on PC1 and PC2, respectively
+### Let Eig1 and Eig2 be the eigenvalues of PC1 and PC2 respectively. 
+### Recall that eigenvalues measure the amount of variation retained by each PC.
+### The total contribution of a variable, on explaining the variations retained by PC1 an PC2,
+### is calculated as follow : (C1 * Eig1) + (C2 * Eig2)
+
+# Control variable colors using their contributions
+pdf("Pca variables contribution Female.pdf")
+fviz_pca_var(res.pca, col.var="contrib")
+#dev.off()
+# Change the gradient color
+fviz_pca_var(res.pca, col.var="contrib") +
+  scale_color_gradient2(low="green", mid="blue", 
+                        high="red", midpoint=4) + theme_minimal()
+### This is helpful to highlight the most important variables in explaining the variations retained by the principal components.
+### Visual inspection of variable contributions on PCs is nice??? 
+### But, How to extract the most significantly associated variables with a given principal component?
+
+### Dimension description
+### The function dimdesc()[in FactoMineR] can be used to identify the most correlated variables with a given principal component.
+
+res.desc <- dimdesc(res.pca, axes = c(1,2))
+# Description of dimension 1
+res.desc$Dim.1
+res.desc$Dim.2
+### The top significant values are the one with lower p-value (the output is not ordered in significance scale so check all the values until the last)
+
+### Graph of individuals
+fviz_pca_ind(res.pca)
+
+fviz_pca_ind(res.pca, col.ind="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.50) + theme_minimal()
+
+# Contributions of individuals to PC1
+fviz_contrib(res.pca, choice = "ind", axes = 1)
+# Contributions of the individuals to PC2
+fviz_contrib(res.pca, choice = "ind", axes = 2)
+# Total contribution on PC1 and PC2
+fviz_contrib(res.pca, choice = "ind", axes = 1:5)
+
+
+pca_david <- princomp(dta.f, cor = T)
+summary(pca_david)
+plot(pca_david)
+pca_david$scores
+dta.f$dam_pc1 <- pca_david$scores[,1]
+dta.f$dam_pc2 <- pca_david$scores[,2]
+
+write.table(dta.f, "Omble PCA_dam 09.11.18 Female")
+
+
+
+############################
+#### Males sperm dataset ###
+############################
+
+
+### In this dataset I can add sperm and males measurements ###
+
+
+setwd("/Users/cdeguttr/Desktop/Whitefish 20_12_16/Breeders datasets/")
+dta1 <- read.csv("20.12.16 Sperm dataset (18.01.18).csv", header = TRUE)
+
+### After a first PCR I deleted the factors that explained less variability. The closer to the center of the circle
+dta1 <- subset(dta1, select=-c(Area_ratio, Body_depth, Eye_diameter, alpha.FL, alpha.CA, Head_length,
+                               Surface.area_CSarea, Head_depth, Average_depth, Vert_Feret, Horz_Feret,
+                               GSI, HSI, Longevity, Gonads, Liver, SlowProgressive)) 
+
+
+### In questo modo se ho dei valori mancanti non vado ad influenzare i risultati usando la mediana 
+### impute missing values with median
+#dta1$alpha.FL[is.na(dta1$alpha.FL)] <- median(dta1$alpha.FL, na.rm = TRUE)
+dta1$Approx_ejaculate_vol[is.na(dta1$Approx_ejaculate_vol)] <- median(dta1$Approx_ejaculate_vol, na.rm = TRUE)
+
+res.pca <- PCA(dta1,scale.unit = T, graph = FALSE)
+
+### The output of the function PCA() is a list including
+print(res.pca)
+res.pca$var$contrib
+
+### Interpreting PCA
+### Variances of the principal components
+### The proportion of variation retained by the principal components (PCs) can be extracted as follow
+eigenvalues <- res.pca$eig
+head(eigenvalues[, 1:2])
+get_eigenvalue(res.pca)
+### The percentage of variation is given by: eigenvalue/number of dimension 
+### A method to retain variables is to take all of the one that have a eigenvalue > 1. Only with standardize data! (Kaiser 1961)
+### This often correspond to the percentage of variation retained by the component that should be more than 85-90%
+
+### The amount of variation retained by each PC is called eigenvalues. 
+### The first PC corresponds to the direction with the maximum amount of variation in the data set. 
+library("factoextra")
+### The importance of PCs can be visualized using a scree plot
+fviz_eig(res.pca, addlabels = T, ylim=c(0,50))
+fviz_screeplot(res.pca, ncp=10,addlabels = T, ylim=c(0,50))
+
+### The correlation between a variable and a PC is called loading.
+### The variables can be plotted as points in the component space using their loadings as coordinates
+head(res.pca$var$coord)
+
+### Visualization of the variables on the factor map
+fviz_pca_var(res.pca, col.var = "black")
+### Correlation circle can help to visualize the most correlated variables (i.e, variables that group together!!!!)
+### Negative correlated varibles are in the opposite sides of the circle!!!
+### The circle is the "correlation circle", as more one variable is correlated with its pc as closer it is to the circle.
+
+### Cos2 : quality of the representation for variables on the factor map
+### The squared loadings for variables are called cos2 ( = cor * cor = coord * coord).
+
+head(res.pca$var$cos2)
+
+
+
+### The quality of representation is called COS2
+library(corrplot)
+var <- get_pca_var(res.pca)
+corrplot(var$cos, is.corr=FALSE)
+### The sum of the cos2 for variables on the principal components is equal to one.
+### If a variable is perfectly represented by only two components, the sum of the cos2 is equal to one.
+### In this case the variables will be positioned on the circle of correlations.
+### For some of the variables, more than 2 components are required to perfectly represent the data.
+### In this case the variables are positioned inside the circle of correlations.
+### The cos2 values are used to estimate the quality of the representation
+### The closer a variable is to the circle of correlations, the better its representation on the factor map
+### (and the more important it is to interpret these components)
+### Variables that are closed to the center of the plot are less important for the first components.
+
+fviz_pca_var(res.pca, col.var="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.5) + theme_minimal()
+
+
+### Contributions of the variables to the principal components
+### Variables that are correlated with PC1 and PC2 are the most important in explaining the variability in the data set!!!
+### Variables that does not correlated with any PC or correlated with the last dimensions
+### are variables with low contribution and might be removed to simplify the overall analysis!!!
+### The contributions of variables in accounting for the variability in a given
+### principal component are (in percentage) : (variable.cos2 * 100) / (total cos2 of the component)
+### The contribution of variables can be extracted as follow :
+
+head(res.pca$var$contrib)
+
+### The larger the value of the contribution, the more the variable contributes to the component
+
+# Contributions of variables on PC1
+fviz_contrib(res.pca, choice = "var", axes = 1)
+# Contributions of variables on PC2
+fviz_contrib(res.pca, choice = "var", axes = 2)
+
+### If the contribution of the variables were uniform, the expected value would be 1/length(variables)
+### The red dashed line on the graph above indicates the expected average contribution. For a given component,
+### a variable with a contribution larger than this cut off could be considered as important in contributing to the component
+
+# Total contribution from PC1 to PC5
+fviz_contrib(res.pca, choice = "var", axes = 1:5)
+
+### How do you calculate the total contribution of a variable for 2 or more axes?
+### Let C1 and C2 be the contributions of a given variable on PC1 and PC2, respectively
+### Let Eig1 and Eig2 be the eigenvalues of PC1 and PC2 respectively. 
+### Recall that eigenvalues measure the amount of variation retained by each PC.
+### The total contribution of a variable, on explaining the variations retained by PC1 an PC2,
+### is calculated as follow : (C1 * Eig1) + (C2 * Eig2)
+
+# Control variable colors using their contributions
+fviz_pca_var(res.pca, col.var="contrib")
+# Change the gradient color
+fviz_pca_var(res.pca, col.var="contrib") +
+  scale_color_gradient2(low="green", mid="blue", 
+                        high="red", midpoint=4) + theme_minimal()
+### This is helpful to highlight the most important variables in explaining the variations retained by the principal components.
+### Visual inspection of variable contributions on PCs is nice??? 
+### But, How to extract the most significantly associated variables with a given principal component?
+
+### Dimension description
+### The function dimdesc()[in FactoMineR] can be used to identify the most correlated variables with a given principal component.
+
+res.desc <- dimdesc(res.pca, axes = c(1,2))
+# Description of dimension 1
+res.desc$Dim.1
+res.desc$Dim.2
+### The top significant values are the one with lower p-value (the output is not ordered in significance scale so check all the values until the last)
+
+### Graph of individuals
+fviz_pca_ind(res.pca)
+
+fviz_pca_ind(res.pca, col.ind="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.50) + theme_minimal()
+
+# Contributions of individuals to PC1
+fviz_contrib(res.pca, choice = "ind", axes = 1)
+# Contributions of the individuals to PC2
+fviz_contrib(res.pca, choice = "ind", axes = 2)
+# Total contribution on PC1 and PC2
+fviz_contrib(res.pca, choice = "ind", axes = 1:5)
+
+### DIET PER SEX AND PER MONTH 2018
+
+#install.packages("lme4")
+#install.packages("nlme")
+#install.packages("arm")
+#install.packages("RCurl")
+#install.packages("vegan")
+library(arm)
+library(lme4)
+library(nlme)
+library(RCurl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(vegan)
+library(devtools)
+library(dunn.test)
+
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/esto")
+
+rm(list=ls())
+
+dta <- read.csv("stomactot_1.csv", sep=";", header = TRUE)
+esto2018 <- read.csv("esto2018persex.csv", sep=";", header = TRUE)
+dta18 <- subset(dta, Year=="2018")
+dta87 <- subset(dta, Year=="1987")
+dta14 <- subset(dta, Year=="2014")
+
+## j'ai commencé à faire les calculs de fréquences d'occurences, mais ça peut attendre x)
+dta18p <- length(na.omit(dta18$X.perche[dta18$Age=="3"]))
+dta18p <- length(na.omit(dta18$X.perche[dta18$Age=="4"]))
+dta18p <- length(na.omit(dta18$X.mollusques))
+dta18p <- length(na.omit(dta18$X.zooplanct))
+dta18p <- length(na.omit(dta18$X.))
+dta18p <- length(na.omit(dta18$X.perche))
+
+dta.f <- filter(dta18, Sex=="1")
+dta.m <- filter(dta18, Sex=="2")
+
+esto2018 <- gather(esto2018, "variables", "values",X.perche:X.indetermined)
+
+ggplot(data=esto2018, aes(x=as.factor(Sex), y = values, fill=as.factor(variables))) +
+  geom_col(position = "stack") + 
+  scale_fill_brewer(name="Category",labels = c("indetermined", "insect", "mollusc", "perch", "zooplankton"),palette="GnBu",type="seq", direction =1) +
+  labs(title="Diet per Sex 2018") +
+  xlab("Sex") + ylab("Proportions")+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 10, face="bold"),
+        legend.justification=c(1,0))
+
+shapiro.test(dta.f$X.perche)## ne suit pas de distribution normale
+shapiro.test(dta.f$X.insectes)
+shapiro.test(dta.m$X.insectes)
+shapiro.test(dta$Mois)
+
+
+
+length(dta.f$Year)
+length(dta.m$Year)
+
+mean(dta.m$X.perche)
+mean(dta.m$X.zooplanct)
+
+## prop.test pour comparer des proportions indépendantes
+prop.test(x=c(10.56763, 15.47731), n = c(92,49))
+prop.test(x=c(44.52,55.69), n = c(92,49))
+
+#seul les insectes sont mangés dans des proportions différentes par mâles et femllesp= 0.002622
+#dont à partir de là on peut dire que males et femelles ont le meme régime alimentaire
+# si en 2018 c'est comme ça, il y a pas vraiment de raison qu'auparavant c'était différent
+
+
+## DIET PER MONTH (J'AI DEJA REFAIT PAR SAISON, PLUS PARLANT)
+dtamean2018 <- read.csv("meanmonth2018.csv", sep=";", header=TRUE)
+df2018 <- gather(dtamean2018, "variables", "values", X.perche:X.indetermined)
+
+ggplot(data=df2018, aes(x=as.factor(Season), y = values, fill=as.factor(variables))) +geom_col(pos = "stack") + 
+  labs(title  ="Diet per Season 2018", x= "Season", y= "Proportions") +
+  scale_fill_brewer(name="Legend",labels = c("% indetermined", "% insect", "% mollusc", "% perch", "% zooplankton"), palette="GnBu",type="seq", direction =1)+
+  geom_col(position = "stack") + 
+  ggtitle("Diet per month 2018") +
+  xlab("Season") + ylab("Proportions")+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))
+
+dunn.test(dta18$X.perche, g=dta18$Mois, kw=TRUE, label=TRUE) # septembre différent de tout le reste
+dunn.test(dta18$X.mollusques, g=dta18$Mois, kw=TRUE, label=TRUE) # mai différent de juillet
+dunn.test(dta18$X.zooplanct, g=dta18$Mois, kw=TRUE, label=TRUE) # juin différent de tout le reste + mai diff de ju/jul + avril diff de juin et juillet
+dunn.test(dta18$X.insectes, g=dta18$Mois, kw=TRUE, label=TRUE) # mai différent du reste + avril diff de juin et juillet
+#(insecte: ils en mangent moins car plus de perche et zooplancton dispo donc opportuniste???)
+
+
+###################
+## DIET PER SEASON
+dtameanseason18 <- read.csv("meanmonth2018.csv", sep=";", header=TRUE)
+dtameanseason18 <- gather(dtameanseason18, "variables", "values", X.perche:X.indetermined)
+
+
+ggplot(data=dtameanseason18, aes(x=as.factor(Season), y = values, fill=as.factor(variables))) +geom_col(pos = "stack") + 
+  labs(title  ="Diet per Season 2018", x= "Season", y= "Proportions") +
+  scale_fill_brewer(name="Category",labels = c("indetermined", "insect", "mollusc", "perch", "zooplankton"),palette="GnBu",type="seq", direction =1)+
+  geom_col(position = "stack") + 
+  ggtitle("Diet per Season 2018") +
+  xlab("Season") + ylab("Proportion")+
+  theme(panel.background= element_rect(fill = "white", colour = "grey50"))+
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 10, face="bold"),
+        legend.justification=c(1,0))
+
+wilcox.test(dta$X.mollusques[dta$Mois=="5"], dta$X.mollusques[dta$Mois=="7"])# 0.0118
+wilcox.test(dta$X.mollusques[dta$Mois=="4"], dta$X.mollusques[dta$Mois=="9"])# 0.02
+wilcox.test(dta$X.mollusques[dta$Mois=="7"], dta$X.mollusques[dta$Mois=="7"]) # similaire
+
+wilcox.test(dta$X.perche[dta$Mois=="5"], dta$X.perche[dta$Mois=="6"]) #0.0001
+wilcox.test(dta$X.perche[dta$Mois=="5"], dta$X.perche[dta$Mois=="9"]) # 4.567e-06
+wilcox.test(dta$X.perche[dta$Mois=="7"], dta$X.perche[dta$Mois=="9"]) # 2.678e-05
+
+wilcox.test(dta$X.insectes[dta$Mois=="5"], dta$X.insectes[dta$Mois=="6"]) 
+wilcox.test(dta$X.insectes[dta$Mois=="5"], dta$X.insectes[dta$Mois=="9"])
+wilcox.test(dta$X.insectes[dta$Mois=="6"], dta$X.insectes[dta$Mois=="9"]) 
+
+wilcox.test(dta$X.zooplanct[dta$Mois=="5"], dta$X.zooplanct[dta$Mois=="6"]) #0.008
+wilcox.test(dta$X.zooplanct[dta$Mois=="4"], dta$X.zooplanct[dta$Mois=="9"]) #8.053e-05
+wilcox.test(dta$X.zooplanct[dta$Mois=="7"], dta$X.zooplanct[dta$Mois=="9"]) # 0.005
+
+## globalement tout est bien différent donc ils mangent des proies différentes en fonction des saisons
+## a partir de maintenant je dois tout comparer par saison.
+
+
+##wilcoxcon ne marche pas, variables dépendantes !
+
+
+
+
+#models
+#mes variables sont dépendantes je peux pas faire ça
+
+m1 <- lm(dta$X.perche~dta$Year+dta$Mois+dta$Season+dta$Weight+dta$Sex+dta$Maturity+dta$Age)
+anova(m1)
+summary(m1)
+
+m2 <- lm(dta$X.mollusques~dta$Year+dta$Mois+dta$Season+dta$Weight+dta$Sex+dta$Maturity+dta$Age)
+anova(m2)
+summary(m2)
+
+#manova
+
+Y <- cbind(dta$X.perche,dta$X.mollusques,dta$X.zooplanct,dta$X.insectes, dta$X.algue)
+
+fit <- manova(Y~dta$Year*dta$Season*dta$Weight*dta$Sex*dta$Maturity*dta$Age) # interactions entre chaque, pas besoin
+summary(fit, test = "Pillai")
+
+fit <- manova(Y~dta$Year+dta$Season+dta$Weight+dta$Sex+dta$Maturity+dta$Age)
+summary(fit)
+
+plot(residuals(fit))
+qqnorm(residuals(fit))
+hist(residuals(fit))
+
+#permanova
+
+model1 <- adonis(Y~dta$Year+dta$Season+dta$Weight+dta$Sex+dta$Maturity+dta$Age, permutations=1999)
+model1
+summary(model1)
+
+
+pairwise.adonis <- function(x,factors, sim.function = 'vegdist', sim.method = 'bray', p.adjust.m ='bonferroni')
+{
+  library(vegan)
+  
+  co = combn(unique(as.character(factors)),2)
+  pairs = c()
+  F.Model =c()
+  R2 = c()
+  p.value = c()
+  
+  
+  for(elem in 1:ncol(co)){
+    if(sim.function == 'daisy'){
+      library(cluster); x1 = daisy(x[factors %in% c(co[1,elem],co[2,elem]),],metric=sim.method)
+    } else{x1 = vegdist(x[factors %in% c(co[1,elem],co[2,elem]),],method=sim.method)}
+    
+    ad = adonis(x1 ~ factors[factors %in% c(co[1,elem],co[2,elem])] );
+    pairs = c(pairs,paste(co[1,elem],'vs',co[2,elem]));
+    F.Model =c(F.Model,ad$aov.tab[1,4]);
+    R2 = c(R2,ad$aov.tab[1,5]);
+    p.value = c(p.value,ad$aov.tab[1,6])
+  }
+  
+  p.adjusted = p.adjust(p.value,method=p.adjust.m)
+  sig = c(rep('',length(p.adjusted)))
+  sig[p.adjusted <= 0.05] <-'.'
+  sig[p.adjusted <= 0.01] <-'*'
+  sig[p.adjusted <= 0.001] <-'**'
+  sig[p.adjusted <= 0.0001] <-'***'
+  
+  pairw.res = data.frame(pairs,F.Model,R2,p.value,p.adjusted,sig)
+  print("Signif. codes:  0 â***â 0.001 â**â 0.01 â*â 0.05 â.â 0.1 â â 1")
+  return(pairw.res)
+  
+} 
+
+#extraction contrast des permanova
+pairwise.adonis(Y[],dta$Age)
+pairwise.adonis(Y[],dta$Sex)
+pairwise.adonis(Y[],dta$Year)
+pairwise.adonis(Y[],dta$Season)
+
+
+#contrast pour permanova (pareil que lm pour tester)
+dta$Sex <- as.factor(dta$Sex)
+dta$Age <- as.factor(dta$Age)
+dta$Maturity <- as.factor(dta$Maturity)
+dta$Year <- as.factor(dta$Year)
+dta$Season <- as.factor(dta$Season)
+
+plot(dta$Weight~dta$Age)
+plot(dta$Season)
+plot(dta$Weight~dta$Year)
+
+model1 <- adonis(Y~dta$Year+dta$Season+dta$Weight+dta$Sex+dta$Maturity+dta$Age, permutations=1999)
+summary(model1)
+
+contrasts(dta$Sex) <- contr.sum
+contrasts(dta$Age) <- contr.sum
+contrasts(dta$Maturity) <- contr.sum
+contrasts(dta$Year) <- contr.sum
+contrasts(dta$Season) <- contr.sum
+
+
+
+model2 <- adonis(Y~dta$Year+dta$Season+dta$Weight+dta$Sex+dta$Maturity+dta$Age, permutations=1999)
+summary(model2)
+
+
+
+#lsmeans(, list(pairwise ~ Age), adjust="tukey")
+
+
+ado_2 <- adonis(Y~dta$Sex)
+ado_2
+####TRANSFORMER DONNEE DEPENDANTES EN INDEP POUR DES PROPORTIONS
+#plutot permanova que manova parce que residus chelous et pas données distribuée normalement
+#permutstions=999 suffisant en regardant articles parce que j'ai un gros dataset
+## finalement j'utilise glm multiple testing 
+
+## statistiques estomacs
+library(arm)
+library(lme4)
+library(nlme)
+library(RCurl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(vegan)
+library(devtools)
+library(dunn.test)
+library(lsmeans)
+
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/esto")
+
+rm(list=ls())
+
+dta <- read.csv("stomactot_2.csv", sep=";", header = TRUE)
+esto2018 <- read.csv("esto2018persex.csv", sep=";", header = TRUE)
+dta18 <- subset(dta, Year=="2018")
+dta87 <- subset(dta, Year=="1987")
+dta14 <- subset(dta, Year=="2014")
+
+
+cor.test(dta$Length, dta$Age, method = "pearson") # cor 0.6933486 t = 15.335, df = 254, p-value < 2.2e-16
+cor.test(dta$Length, dta$Weight, method = "pearson") # cor 0.8514596; t = 25.876, df = 254, p-value < 2.2e-16
+
+
+require(foreign)
+require(nnet)
+require(ggplot2)
+require(reshape2)
+
+dta$Sex <- as.factor(dta$Sex)
+dta$Age <- as.factor(dta$Age)
+dta$Maturity <- as.factor(dta$Maturity)
+dta$Year <- as.factor(dta$Year)
+dta$Season <- as.factor(dta$Season)
+
+fit_perch <- glm(dta$perche~dta$Year+dta$Season++dta$Sex+dta$Maturity+dta$Age*dta$Length, family=quasipoisson())
+summary(fit_perch) # display results
+library(car)
+Anova(fit_perch, type=2)
+confint(fit_perch) # 95% CI for the coefficients
+exp(coef(fit_perch))
+exp(confint(fit_perch))
+predict(fit_perch, type="response") # predicted values
+residuals(fit_perch, type = "deviance") # residuals
+
+
+lsmeans(fit_perch, list(pairwise ~ Age), adjust="tukey") # methode de correction, tu risque de overestimate tes p values, donc tu dois diviser les p values
+lsmeans(fit_perch, list(pairwise ~ Year), adjust="tukey")
+lsmeans(fit_perch, list(pairwise ~ Season), adjust="tukey")
+lsmeans(fit_perch, list(pairwise ~ Maturity), adjust="tukey")
+lsmeans(fit_perch, list(pairwise ~ Sex), adjust="tukey")
+
+fit_mol <- glm(dta$mollusques~dta$Year+dta$Season+dta$Length+dta$Sex+dta$Maturity+dta$Age, family=quasipoisson())
+Anova(fit_mol, type=2)
+
+lsmeans(fit_mol, list(pairwise ~ Age), adjust="tukey")
+lsmeans(fit_mol, list(pairwise ~ Year), adjust="tukey")
+lsmeans(fit_mol, list(pairwise ~ Season), adjust="tukey")
+lsmeans(fit_mol, list(pairwise ~ Maturity), adjust="tukey")
+lsmeans(fit_mol, list(pairwise ~ Sex), adjust="tukey")
+
+fit_zoo <- glm(dta$zooplanckton~dta$Year+dta$Season+dta$Length+dta$Sex+dta$Maturity+dta$Age, family=poisson())
+Anova(fit_zoo, type=2)
+summary(Anova(fit_zoo, type=2))
+
+lsmeans(fit_zoo, list(pairwise ~ Age), adjust="tukey")
+lsmeans(fit_zoo, list(pairwise ~ Year), adjust="tukey")
+lsmeans(fit_zoo, list(pairwise ~ Season), adjust="tukey")
+lsmeans(fit_zoo, list(pairwise ~ Maturity), adjust="tukey")
+lsmeans(fit_zoo, list(pairwise ~ Sex), adjust="tukey")
+
+fit_ins <- glm(dta$insect~dta$Year+dta$Season+dta$Length+dta$Sex+dta$Maturity+dta$Age, family=poisson())
+Anova(fit_ins, type=2)
+
+
+lsmeans(fit_ins, list(pairwise ~ Age), adjust="tukey")
+lsmeans(fit_ins, list(pairwise ~ Year), adjust="tukey")
+lsmeans(fit_ins, list(pairwise ~ Season), adjust="tukey")
+lsmeans(fit_ins, list(pairwise ~ Maturity), adjust="tukey")
+lsmeans(fit_ins, list(pairwise ~ Sex), adjust="tukey")
+
+
+#### confition factor K and Lee's phenomenom
+###FULTON'S COEFF + LESSPHENOM
+
+
+
+## FULTON
+#reset R brain
+rm(list=ls())
+#getwd tells you where R is currently looking
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+df <- read.csv("ombletotal2018foranalysis.csv", sep=";", header = TRUE)
+
+
+library(ggplot2)
+
+dataf<- subset(df, Sex=="F")
+datam <- subset(df, Sex=="M")
+
+#TOUT ENSEMBLE
+bltot <- summarySE(df, measurevar="K", groupvars=c("group", "Sex"), na.rm =TRUE)
+bltot <-  subset(bltot , Sex != FALSE)
+ggplot(bltot, aes(x=group, y=K, colour=Sex, group=group))+ 
+  geom_errorbar(aes(ymin=K-sd, ymax=K+sd), colour="black", width=.2)+
+  geom_point(size=2)+
+  xlab("Group")+
+  ylab("Coeff F")+
+  ggtitle("Coefficient Fulton")
+
+
+df$group <- as.factor(df$group)
+df$Age <- as.factor(df$Age)
+df$Sex <- as.factor(df$Sex)
+model <- aov(df$K~df$group+df$Age+df$Sex)
+anova(model)
+
+lsmeans(model, list(pairwise ~ Age), adjust="tukey")
+lsmeans(model, list(pairwise ~ group), adjust="tukey")
+
+
+##LEE
+#setwd tells R where to look
+setwd("D:/UNIL/Master maison de la rivière/Excel/Amanda/finaux")
+df <- read.csv("ombletotal2018foranalysis.csv", sep=";", header = TRUE)
+df <- data.frame(df)
+
+data1215<-subset(df, Cohort >= 2012 & Cohort<=2015)
+
+
+df <- data1215
+df <- df[!(names(df) %in% "group")] 
+group <- vector(length = nrow(df))
+df <- cbind(df,group)
+
+
+for (rows in 1:nrow(df)) { ### boucle qui permet de rajouter une colonne à mon dataframe df.
+  if(df$Cohort[rows] >= 1958 & df$Cohort[rows] <= 1965) ### quand cohort est entre 58 et 65, on demande a rajouter 58-65 dans la colonne crée Group
+    df$group[rows] <- "58-65"
+  if(df$Cohort[rows] >= 1980 & df$Cohort[rows] <= 1986)
+    df$group[rows] <- "80-86"
+  if(df$Cohort[rows] >= 1994 & df$Cohort[rows] <= 1999)
+    df$group[rows] <- "94-99"
+  if(df$Cohort[rows] >= 2000 & df$Cohort[rows] <= 2003)
+    df$group[rows] <- "00-03"
+  if(df$Cohort[rows] >= 2012 & df$Cohort[rows] <= 2015)
+    df$group[rows] <- "12-15"
+}
+
+df <- gather(df, l_at, values, L1:L5, factor_key=TRUE)
+bl <- summarySE(df, measurevar="values", groupvars=c("l_at", "Age"), na.rm =TRUE)
+
+library(ggplot2);library(Rmisc);library(devtools)
+library(FSA)
+library(magrittr)
+library(dplyr)
+library(nlstools)
+library(AICcmodavg)
+library(devtools)
+library(tidyr)
+library(ggplot2)
+library(Rmisc)
+library(dunn.test)
+library(ordinal)
+library(gridExtra)
+library(cowplot)
+library(GGally)
+library(lsmeans)
+
+ggplot(bl, aes(x=l_at, y=values, colour=Age, group=Age))+ 
+  geom_errorbar(aes(ymin=values-sd, ymax=values+sd), colour="black", width=.2)+
+  scale_fill_manual(values=c("black", "#9999CC", "#66CC99", "green", "orange"))+
+  geom_line()+
+  geom_point(size=2)+
+  xlab("Age (years)")+
+  ylab("Length (mm)")+
+  ggtitle("")+
+  theme(panel.background = element_rect(fill = "white", colour = "grey50"))+ 
+  theme(legend.background = element_rect(size=0.5, linetype="solid", colour = "black"), 
+        legend.title = element_text(colour = "black", size = 10, face="bold"),
+        legend.justification=c(1,0),
+        legend.position=c(0.96,0.05))
+
+
+
+
+
+
+
